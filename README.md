@@ -19,7 +19,7 @@ This tutorial is intended for network administrators, solution architects, and s
 
 NSI follows a *producer-consumer* model, where the *consumer* consumes services provided by the *producer*. The *producer* contains the cloud infrastructure responsible for inspecting network traffic, while the *consumer* environment contains the cloud resources that require inspection.
 
-<img src="images/diagram.png" width="100%">
+<img src="images/panorama-arch.png" width="100%">
 
 ### Producer Components
 
@@ -77,6 +77,8 @@ The internal load balancer lacks zone-based affinity support. Therefore, conside
   </tr>
 </table>
 
+For the demo codes in the project, we will use the ***Cross-Zone*** based deployment. We will create a central Managed Instance Group, and this VM-Series NGFW pool will handle the traffics from all zones across the region.
+
 <br>
 
 ### Consumer Components
@@ -94,61 +96,22 @@ Finally, the consumer creates a network firewall policy with rules that use a *s
 
 <br>
 
-### Traffic Flow Example
+### Auto Scaling Components
 
-The network firewall policy associated with the `consumer-vpc` contains two rules, each specifying a security profile group as their action. When traffic matches either rule, the traffic is encapsulated to the producer for inspection. Both rules and the security profile group are created automatically by Terraform.
+Use the GCP VM Series plugin in the VM Series, to create and publish VM Series metrics, working with Google Monitoring and Loggings. Google Managed Instance Group will monitor these metrics and auto scale out and in based on your definition. The Software Firewall License Plugin will manage the firewall instances in the Instance group licensing and delicensing. Refer to the [link](https://docs.paloaltonetworks.com/vm-series/11-1/vm-series-deployment/license-the-vm-series-firewall/use-panorama-based-software-firewall-license-management
+) for details.
+The following bootstrap parameters in `init-cfg.txt` are used to configure the firewall's connection to Panorama and enable license management:
 
-<table>
-  <tr>
-    <!-- Title cell with left alignment -->
-    <th colspan="5" align="center">Network Firewall Policy</th>
-  </tr>
-    <tr>
-        <th>PRIORITY</th>
-        <th>DIRECTION</th>
-        <th>SOURCE</th>
-        <th>DESTINATION</th>
-        <th>ACTION</th>
-    </tr>
-    <tr>
-        <td><code>10</code></td>
-        <td><code>Egress</code></td>
-        <td><code>0.0.0.0/8</code></td>
-        <td><code>0.0.0.0/0</code></td>
-        <td><code>apply-security-profile</code></td>
-    </tr>
-    <tr>
-        <td><code>11</code></td>
-        <td><code>Ingress</code></td>
-        <td><code>0.0.0.0/0</code></td>
-        <td><code>0.0.0.0/8</code></td>
-        <td><code>apply-security-profile</code></td>
-    </tr>
-</table>
+| Parameter | Description |
+| :---- | :---- |
+| `panorama-server` | IP address or FQDN of the Panorama server. |
+| `tplname` | Panorama template stack name for the firewall configuration. |
+| `dgname` | Panorama device group name for the firewall. |
+| `auth-key` | The authorization key used to register the firewall with Panorama. |
+| `plugin-op-commands=panorama-licensing-mode-ons` | Enables the Software Firewall License Plugin to manage the firewall license. |
+| `vm-series-auto-registration-pin-id` | The firewall registration PIN ID for installing the device certificate onto the firewall. |
+| `vm-series-auto-registration-pin-value` | The firewall registration PIN Value for installing the device certificate onto the firewall. |
 
-> [!NOTE]
-> In the *out-of-band* model, traffic would be mirrored to the firewalls instead of redirected.  
-
-
-#### Traffic to Producer
-<img src="images/diagram_flow1.png" width="100%">
-
-1. The `web-vm` makes a request to the internet. The request is evaluated against the rules within the Network Firewall Policy associated with the `consumer-vpc`.
-2. The request matches the `EGRESS` rule (priority: `10`) that specifies a security profile group as its action.
-3. The request is then encapsulated through the `endpoint association` to the producer environment.
-4. Within the producer environment, the `intercept deployment group` directs traffic to the `intercept deployment` located in the same zone as the `web-vm`.
-5. The internal load balancer forwards the traffic to an available firewall for deep packet inspection.
-
-#### Traffic from Producer
-<img src="images/diagram_flow2.png" width="100%">
-
-1. If the firewall permits the traffic, it is returned to the `web-vm` via the consumer's `endpoint association`.
-2. The local route table of the `consumer-vpc` routes traffic to the internet via the Cloud NAT.
-3. The session is established with the internet destination and is continuously monitored by the firewall. 
-
----
-
-<br>
 
 ## Requirements
 
@@ -182,8 +145,8 @@ In the `producer` directory, use the terraform plan to automatically create the 
 1. In [Cloud Shell](https://shell.cloud.google.com), clone the repository change to the `producer` directory. 
 
     ```
-    git clone https://github.com/PaloAltoNetworks/google-cloud-nsi-ui-demo.git
-    cd google-cloud-nsi-ui-demo/producer
+    git clone https://github.com/PaloAltoNetworks/google-cloud-nsi-autoscaling-panorma.git
+    cd google-cloud-nsi-autoscaling-panorma/producer
     ```
 
 2. Create a `terraform.tfvars`.
@@ -194,13 +157,13 @@ In the `producer` directory, use the terraform plan to automatically create the 
 
 3. Edit `terraform.tfvars` by setting values for the following variables:  
    
-    | Key | Value | Default |
+    | Variable | Description | Default |
     | :---- | :---- | :---- |
     | `project_id` | The Google Cloud project ID of the producer environment. | `null` |
-    | `mgmt_allow_ips` | A list of IPv4 addresses which have access to the firewall's mgmt interface. | `["0.0.0.0/0"]` |
-    | `mgmt_public_ip` | If true, the management address will have a public IP assigned to it. | `true` | 
-    | `region` | The region to deploy the consumer resources. | `us-west1` |
-    | `image_name` | The firewall image to deploy. | `vmseries-flex-bundle2-1126`|
+    | `mgmt_allow_ips` | A list of IP addresses to be added to the management network's ingress firewall rule. | `null` |
+    | `mgmt_public_ip` | If true, a public IP will be set on the management interface. | `false` | 
+    | `region` | The region to deploy the producer resources. | `us-west1` |
+    | `image_name` | Name of the firewall image within the paloaltonetworksgcp-public project. | `vmseries-flex-bundle2-1114`|
     | `mirroring_mode` | If true, configures the forwarding rule for packet mirroring. If false, configures it for in-band traffic. | `false` |
 
 
@@ -230,12 +193,8 @@ In the `producer` directory, use the terraform plan to automatically create the 
 5. After the apply completes, terraform displays the following message:
 
     <pre>
-    export <b>PRODUCER_PROJECT</b>=<i>your-project-id</i>
-    export <b>DATA_VPC</b>=<i>nsi-data</i>
-    export <b>DATA_SUBNET</b>=<i>us-west1-data</i>
-    export <b>REGION</b>=<i>us-west1</i>
-    export <b>ZONE</b>=<i>us-west1-a</i>
-    export <b>BACKEND_SERVICE</b>=<i>https://www.googleapis.com/compute/v1/projects/your-project-id/regions/us-west1/backendServices/panw-nsi-lb</i></pre>
+    <b>DEPLOYMENT_GROUP</b> = <i>"projects/your-project-id/locations/global/interceptDeploymentGroups/your-deployment-group"</i>
+    <b>PRODUCER_PROJECT</b> = <i>"your-project-id"</i></pre>
 
 
 > [!IMPORTANT] 
@@ -259,7 +218,7 @@ In the `consumer` directory, use the terraform plan to create a consumer environ
 
     ```
     cd
-    cd google-cloud-nsi-ui-demo/consumer
+    cd google-cloud-nsi-autoscaling-panorma/consumer
     ```
 
 2. Create a `terraform.tfvars`
@@ -273,12 +232,13 @@ In the `consumer` directory, use the terraform plan to create a consumer environ
 
     | Variable | Description | Default |
     | :---- | :---- | :---- |
-    | `project_id` | The project ID of the consumer environment. | `null` |
-    | `mgmt_allowed_ips` | A list of IPv4 addresses that can access the VMs on `TCP:80,22`. | `["0.0.0.0/0"]` |
-    | `region` | The region to deploy the consumer resources. | `us-west1` |
+    | `project_id` | The deployment project ID. | `null` |
+    | `mgmt_allow_ips` | A list of IP addresses to be added to the consumer network's ingress firewall rule. | `null` |
+    | `region` | The region for the deployment. | `us-west1` |
     | `create_gke` | Whether to create the GKE cluster. | `true` |
-    | `producer_project_id` | The project ID of the producer environment. | `null` |
-    | `deployment_group_id` | The ID of the deployment group created in the producer project. | `deployment-group` |
+    | `producer_project_id` | Project ID of the producer environment. | `null` |
+    | `producer_dg` | The fully qualified ID of the Deployment Group in the producer project. | `null` |
+    | `mirroring_mode` | If true, configures the endpoint group for packet mirroring. If false, configures it for in-band traffic. | `false` |
 
 4. Initialize and apply the terraform plan.
 
@@ -292,13 +252,12 @@ In the `consumer` directory, use the terraform plan to create a consumer environ
 5. After the apply completes, terraform displays the following message:
 
     <pre>
-    export <b>CONSUMER_PROJECT</b>=<i>your-project-id</i>
-    export <b>CONSUMER_VPC</b>=<i>consumer-vpc</i>
-    export <b>REGION</b>=<i>us-west1</i>
-    export <b>ZONE</b>=<i>s-west1-a</i>
-    export <b>CLIENT_VM</b>=<i>client-vm</i>
-    export <b>CLUSTER</b>=<i>cluster1</i>
-    export <b>ORG_ID</b>=<i>$(gcloud projects describe your-project-id --format=json | jq -r '.parent.id')</i></pre>
+    CONSUMER_PROJECT=<i>your-project-id</i>
+    CONSUMER_VPC=<i>consumer-vpc</i>
+    REGION=<i>us-west1</i>
+    ZONE=<i>us-west1-a</i>
+    CLIENT_VM=<i>client-vm</i>
+    CLUSTER=<i>cluster1</i></pre>
 
 <br>
 
@@ -371,7 +330,7 @@ Simulate pseudo-malicious traffic for both east-west and north-south traffic flo
   1. Run `terraform destroy` from the `consumer` directory.
 
         ```
-        cd google-cloud-nsi-ui-demo/consumer
+        cd google-cloud-nsi-autoscaling-panorma/consumer
         terraform destroy
         ```
 
@@ -382,7 +341,7 @@ Simulate pseudo-malicious traffic for both east-west and north-south traffic flo
   1. Run `terraform destroy` from the `producer` directory.
 
         ```
-        cd google-cloud-nsi-ui-demo/producer
+        cd google-cloud-nsi-autoscaling-panorma/producer
         terraform destroy
         ```
 
