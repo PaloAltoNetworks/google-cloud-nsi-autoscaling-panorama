@@ -1,7 +1,7 @@
-# Terraform Deployment Guide for Software NGFW with Network Security Integration
+# Autoscaling Software NGFW with Network Security Integration using Panorama
 
 
-This tutorial shows how to deploy Palo Alto Networks Software Firewalls in Google Cloud, utilizing either the *in-line* or *out-of-band* deployment model within the [Network Security Integration](https://cloud.google.com/network-security-integration/docs/nsi-overview) (NSI).  NSI enables you to gain  visibility and security for your VPC network traffic, without requiring any changes to your network infrastructure.  
+This tutorial shows how to deploy Palo Alto Networks Software Firewalls in Google Cloud, utilizing either the *in-line* or *out-of-band* deployment model within the [Network Security Integration](https://cloud.google.com/network-security-integration/docs/nsi-overview) (NSI). This deployment integrates with **Panorama** for centralized management and uses **Google Cloud Managed Instance Groups** for autoscaling based on custom metrics. NSI enables you to gain visibility and security for your VPC network traffic, without requiring any changes to your network infrastructure.
 
 The functionality of each model is summarized as follows:
 
@@ -10,14 +10,14 @@ The functionality of each model is summarized as follows:
 | **Out-of-Band** | Uses packet mirroring to forward a copy of network traffic to Software Firewalls for *out-of-band* inspection. Traffic is mirrored to your software firewalls by creating mirroring rules within your network firewall policy. |
 | **In-line**     | Uses packet intercept to steer network traffic to Software Firewalls for *in-line* inspection. Traffic is steered to your software firewalls by creating firewall rules within your network firewall policy. |
 
-This tutorial is intended for network administrators, solution architects, and security professionals who are familiar with [Compute Engine](https://cloud.google.com/compute) and [Virtual Private Cloud (VPC) networking](https://cloud.google.com/vpc).
+This tutorial is intended for network administrators, solution architects, and security professionals who are familiar with Panorama, [Compute Engine](https://cloud.google.com/compute), and [Virtual Private Cloud (VPC) networking](https://cloud.google.com/vpc).
 
 
 <br>
 
 ## Architecture
 
-NSI follows a *producer-consumer* model, where the *consumer* consumes services provided by the *producer*. The *producer* contains the cloud infrastructure responsible for inspecting network traffic, while the *consumer* environment contains the cloud resources that require inspection.
+This architecture integrates Panorama for centralized firewall management, licensing, and metric collection. NSI follows a *producer-consumer* model, where the *consumer* consumes services provided by the *producer*. The *producer* contains the cloud infrastructure responsible for inspecting network traffic, while the *consumer* environment contains the cloud resources that require inspection. The producer utilizes a Managed Instance Group that autoscales based on metrics published by the VM-Series firewalls to Google Cloud Monitoring.
 
 <img src="images/panorama-arch.png" width="100%">
 
