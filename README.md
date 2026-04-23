@@ -323,6 +323,97 @@ Simulate pseudo-malicious traffic for both east-west and north-south traffic flo
 <br>
 
 
+**Optional: VM-Series Golden Image on GCP**
+
+In high-scale cloud environments, Time-to-Traffic is a critical metric. When scaling out firewalls horizontally, relying on Panorama or startup scripts to download and install Content Updates (Apps & Threats, Antivirus) introduces significant latency—often adding 5–10 minutes to the boot process.
+
+By using a Golden Image, you "bake" the required PAN-OS version and signature sets directly into the virtual disk. This ensures that new instances are functional and passing traffic with the correct security posture immediately upon booting, bypassing the slow content check and download phases.
+
+## 
+
+**1\. Preparation Phase (Base VM)**
+
+Before capturing an image, you must prepare a "Base VM" that contains all the global settings you want your fleet to inherit.
+
+1. **Deploy:** Launch a standard VM-Series instance from the GCP Marketplace.  
+2. **Update PAN-OS:** Upgrade to your target version (e.g., 10.2.x, 11.1.x).  
+3. **Install Content:** Download and install the latest **Applications and Threats** and **Antivirus** signatures.  
+
+
+## 
+
+**2\. Generalization Phase (CLI)**
+
+Generalization strips the instance-specific "personality" (logs, local admin accounts, and unique keys) while keeping the PAN-OS system files and content updates intact.
+
+1. Log into the **CLI** of the VM-Series firewall.  
+2. Execute the reset command:  
+    ```
+   admin@PA-VM\> request system private-data-reset
+    ```
+3. **Confirm** the prompt. The system will now wipe local data and reboot.  
+4. **CRITICAL:** Once the VM starts rebooting, **do not log back into it**. If you log in, the system recreates local state files, and the image will no longer be "clean."
+
+##
+
+**3\. Capture Phase (gcloud CLI)**
+
+Once the firewall has finished its reset and is sitting at the login prompt (monitor via GCP Serial Console), use the following commands to create the image.
+
+### **A. Stop the Instance**
+
+The VM must be stopped to ensure disk consistency during the image creation process.
+
+```
+gcloud compute instances stop \[BASE\_VM\_NAME\] \--zone \[ZONE\]
+```
+
+### **B. Identify the Source Disk**
+
+Locate the disk name attached to your Base VM:
+
+```
+gcloud compute instances describe \[BASE\_VM\_NAME\] \\  
+    \--zone \[ZONE\] \\  
+    \--format="value(disks\[0\].source)"
+```
+
+### **C. Create the Custom Image**
+
+Using an \--family is highly recommended. It allows your CI/CD pipelines or Terraform scripts to always pull the "latest" version without hardcoding a specific image name.
+
+```
+gcloud compute images create \[IMAGE\_NAME\] \\  
+    \--source-disk=\[SOURCE\_DISK\_NAME\] \\  
+    \--source-disk-zone=\[ZONE\] \\  
+    \--family=\[IMAGE\_FAMILY\_NAME\] \\  
+    \--storage-location=\[LOCATION\] \\  
+    \--description="Palo Alto Golden Image \- PAN-OS \[VERSION\] \- Generalized"
+```
+**Example Command:**
+
+```
+gcloud compute images create palo-v11-golden-v1 \\  
+    \--source-disk=palo-base-disk \\  
+    \--source-disk-zone=us-east1-b \\  
+    \--family=palo-v11-prod \\  
+    \--storage-location=us
+```
+##
+
+
+**\. Deployment Best Practices**
+
+When you spin up a new VM from this Golden Image, keep the following in mind:
+
+* **Initial Credentials:** The firewall will revert to default.  
+* **Licensing:** \* **PAYG:** Licensing is automatic based on the marketplace billing string.  
+  * **BYOL:** You would use the Panorama licensing plugins to manage the license.  
+
+##
+
+
+
 # (Optional) Deletion
 
 ## On the Consumer Project:
