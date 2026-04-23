@@ -271,6 +271,9 @@ Simulate pseudo-malicious traffic for both east-west and north-south traffic flo
 1. In Cloud Shell, remotely generate pseudo-malicious traffic on the `client-vm` to simulate malicious traffic to the `web-vm` (east/west) and to the `internet` (north/south).
 
     ```
+    export CLIENT_VM=<The output of above CLIENT_VM>
+    ```
+    ```
     gcloud compute ssh $CLIENT_VM \
         --zone $ZONE \
         --tunnel-through-iap \
@@ -323,7 +326,7 @@ Simulate pseudo-malicious traffic for both east-west and north-south traffic flo
 <br>
 
 
-**Optional: VM-Series Golden Image on GCP**
+## **Optional: VM-Series Golden Image on GCP**
 
 In high-scale cloud environments, Time-to-Traffic is a critical metric. When scaling out firewalls horizontally, relying on Panorama or startup scripts to download and install Content Updates (Apps & Threats, Antivirus) introduces significant latency—often adding 5–10 minutes to the boot process.
 
@@ -409,6 +412,7 @@ When you spin up a new VM from this Golden Image, keep the following in mind:
 * **Initial Credentials:** The firewall will revert to default.  
 * **Licensing:** \* **PAYG:** Licensing is automatic based on the marketplace billing string.  
   * **BYOL:** You would use the Panorama licensing plugins to manage the license.  
+* **Use the Golden Image**: Replace the standard images in the producer project terraform code variable (full image name path is required).
 
 ##
 
