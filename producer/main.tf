@@ -7,11 +7,11 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = ">=4.64, < 6.18"
+      version = ">=4.64"
     }
     google-beta = {
       source  = "hashicorp/google-beta"
-      version = ">=4.64, < 6.18"
+      version = ">=4.64"
     }
   }
 }
@@ -142,6 +142,7 @@ resource "google_compute_region_health_check" "main" {
 
 // Create backend service.
 resource "google_compute_region_backend_service" "main" {
+  provider      = google-beta
   name          = "${local.prefix}panw-lb"
   protocol      = "UDP"
   network       = google_compute_network.data.id
@@ -150,6 +151,13 @@ resource "google_compute_region_backend_service" "main" {
   backend {
     group          = google_compute_region_instance_group_manager.main.instance_group
     balancing_mode = "CONNECTION"
+  }
+
+  network_pass_through_lb_traffic_policy {
+    zonal_affinity {
+      spillover       = "ZONAL_AFFINITY_SPILL_CROSS_ZONE"
+      spillover_ratio = 0.8
+    }
   }
 }
 
@@ -167,7 +175,7 @@ resource "google_compute_forwarding_rule" "main" {
   ip_protocol            = "UDP"
   ports                  = ["6081"]
   backend_service        = google_compute_region_backend_service.main.id
-  ip_address             = cidrhost(var.subnet_cidr_data, 4 + index(data.google_compute_zones.available.names, each.key))
+  ip_address             = cidrhost(var.subnet_cidr_data, 11 + index(data.google_compute_zones.available.names, each.key))
   subnetwork             = google_compute_subnetwork.data.id
   network                = google_compute_network.data.id
   is_mirroring_collector = var.mirroring_mode ? true : false

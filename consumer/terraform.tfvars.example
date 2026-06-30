@@ -4,4 +4,4 @@ region                     = "us-west1"
 create_gke                 = false 
 prefix                     = ""
 producer_project_id        = ""
-deployment_group_id        = "deployment-group"
+deployment_group_id        = "deployment-group" ## Get this from previous producer terraform output

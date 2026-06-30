@@ -35,30 +35,15 @@ The producer creates firewalls which serve as the backend service for an interna
 
 #### Zone Affinity Considerations
 
-The internal load balancer lacks zone-based affinity support. Therefore, consider the following architectures for your firewall deployment:
+The internal load balancer supports Google Cloud's **Zonal Affinity** feature on its regional backend service, which allows you to keep traffic within the local zone or control how it spills over to other zones.
 
-* **Zone-Based**: Ensures traffic is inspected by a firewall in the same zone as the consumer's source zone.
-* **Cross-Zone**: Allows traffic to be inspected by any firewall within the same region as the traffic's source.
+The supported configurations are:
+* **ZONAL_AFFINITY_STAY_WITHIN_ZONE**: Ensures traffic is inspected by a firewall in the same zone as the consumer's source zone.
+* **ZONAL_AFFINITY_SPILL_CROSS_ZONE**: Allows traffic to be inspected by firewalls in the local zone, but can spill over to other zones if the ratio of healthy backends falls below a defined threshold (configured with a `spillover_ratio`).
+
+For the demo codes in this project, we configure the **Cross-Zone** based deployment to use **ZONAL_AFFINITY_SPILL_CROSS_ZONE** with a `spillover_ratio` of `0.8`. This ensures that traffic prefers firewalls in the local zone but can spill over to other zones within the region if less than 80% of the local firewalls are healthy.
 
 <table>
-  <tr>
-    <!-- Title cell with left alignment -->
-    <th colspan="2" align="left">Zone-Based Deployment</th>
-  </tr>
-  <tr>
-    <td width="35%"><img src="images/diagram_zone.png" width="100%"></td>
-    <td width="65%">
-      <ol>
-        <li>Deploy the firewalls to a zone instance group corresponding to the source zone of the consumer.</li>
-        <li>Add the instance group to a backend service.</li>
-        <li>Create a forwarding rule targeting the backend service.</li>
-        <li>Link the forwarding rule to an intercept/mirroring deployment that matches the zone you are inspecting.</li>
-        <li>Add the deployment to a deployment group.</li>
-        <li><b>Repeat steps 1-5</b> for each zone requiring inspection.</li>
-      </ol>
-    </td>
-  </tr>
-  <tr>
     <!-- Title cell with left alignment -->
     <th colspan="2" align="left">Cross-Zone Deployment</th>
   </tr>
@@ -76,8 +61,6 @@ The internal load balancer lacks zone-based affinity support. Therefore, conside
     </td>
   </tr>
 </table>
-
-For the demo codes in the project, we will use the ***Cross-Zone*** based deployment. We will create a central Managed Instance Group, and this VM-Series NGFW pool will handle the traffics from all zones across the region.
 
 <br>
 
@@ -108,15 +91,13 @@ The following bootstrap parameters in `init-cfg.txt` are used to configure the f
 | `tplname` | Panorama template stack name for the firewall configuration. |
 | `dgname` | Panorama device group name for the firewall. |
 | `auth-key` | The authorization key used to register the firewall with Panorama. |
-| `plugin-op-commands=panorama-licensing-mode-ons` | Enables the Software Firewall License Plugin to manage the firewall license. |
+| `plugin-op-commands=panorama-licensing-mode-on` | Enables the Software Firewall License Plugin to manage the firewall license. |
 | `vm-series-auto-registration-pin-id` | The firewall registration PIN ID for installing the device certificate onto the firewall. |
 | `vm-series-auto-registration-pin-value` | The firewall registration PIN Value for installing the device certificate onto the firewall. |
 
 
 ## Requirements
 
-> [!WARNING] 
-> The *in-line* model is currently in private preview and must be enabled for your Google Cloud account. 
 
 1. A Google Cloud project.
 2. Access to [Cloud Shell](https://shell.cloud.google.com). 
@@ -178,7 +159,7 @@ In the `producer` directory, use the terraform plan to automatically create the 
 > All NSI deployments require PAN-OS 11.2.x or greater.
 
 > [!NOTE]
-> If you are using BYOL image (i.e.  <code>vmseries-flex-<b>byol</b>-*</code>), the license can be applied during or after deployment.  To license during deployment, add your authcode to `bootstrap_files/authcodes`.  See [Bootstrap Methods](https://docs.paloaltonetworks.com/vm-series/11-1/vm-series-deployment/bootstrap-the-vm-series-firewall) for more information.  
+> If you are using BYOL image (i.e.  <code>vmseries-flex-<b>byol</b>-*</code>), the license can be applied during or after deployment.  To license during deployment, Panorama SW Firewall License plugin can help you to auto license your SW Firewall. By input: ***auth-key=""*** and ***plugin-op-commands=panorama-licensing-mode-on*** in the init-cfg.txt. Refer to the [Site](https://docs.paloaltonetworks.com/vm-series/activation-and-onboarding/vm-series-firewall-licensing/use-panorama-based-software-firewall-license-management).
 
 
 4. Initialize and apply the terraform plan.
